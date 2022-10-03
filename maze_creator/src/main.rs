@@ -57,7 +57,7 @@ fn main() {
 
     // A boolean table to check if a coordinate has been traversed.
     let mut visited: Vec<bool> = vec![false; (backtrack.get_area()) as usize];
-    // Stores the traversed path. Is only a size of zero twice, when it's started and when it's done.
+    // Stores the traversed path. Is only a size of zero twice, when it's created and when it's done.
     let mut stack_position: Stack<Coordinate> =  Stack::new(); 
     // Stores a coordinate and reference to the kind of transformation (North, East, South, West) to the next coordinate
     let mut paths: Vec<Path> = Vec::new(); 
@@ -71,8 +71,7 @@ fn main() {
     // Mark the coordinate as visited
     update_visited(get_linear_coord(stack_position.peek().unwrap(), backtrack.width), &mut visited);
 
-    println!("Starting backtracking...");
-    let timer = get_timer();
+    let timer = start_timer("Starting backtracking...");
     
     // Start backtracking
     while !stack_position.is_empty() {
@@ -97,27 +96,23 @@ fn main() {
             add_coordinate_to_stack(next, &mut stack_position);
             update_visited(get_linear_coord(stack_position.peek().unwrap(), backtrack.width), &mut visited);
         }
-    } 
+    }
     // End backtracking
-
-    // Get the duration of the timer
-    let duration_backtracking = get_duration(timer); 
-    println!("Backtracking took {:.4} seconds.\n", duration_backtracking.as_secs_f32());
+    end_timer("Backtracking", timer);
     
-    println!("Starting to build the wireframe...");
-    let timer = get_timer();
+    let timer = start_timer("Starting to build the wireframe...");
     let wireframe:WireFrame = create_wireframe(&paths, maze);
-    let duration_wireframe = get_duration(timer);
-    println!("Wireframe building took {:.4} seconds.\n", duration_wireframe.as_secs_f32());
+    end_timer("Wireframe", timer);
+
+    let timer = start_timer("Starting to draw the png...");
+    draw_png(&wireframe, cell, maze);
+    end_timer("Drawing", timer);
+
     output_path(&paths); // returns the result of writing to file
     output_ascii(&wireframe);
-
-    println!("Starting to draw the png...");
-    let timer = get_timer();
-    draw_png(wireframe, cell, maze);
-    let duration_drawing = get_duration(timer);
-    println!("Drawing the png took {:.4} seconds.\n", duration_drawing.as_secs_f32());
 }
+
+/* Backtracking functions */
 
 fn capture_stack_end(branch_end:Coordinate, paths:&mut Vec<Path>) {
     paths.push(Path { coordinate: (branch_end), direction: (Direction::NONE) });
@@ -151,6 +146,8 @@ fn iterate_through_stack(backtrack:Container, visited:&Vec<bool>, stack:&mut Sta
     }
     next_set
 }
+
+/* Coordinate functions */
 
 fn valid_moves(coord:Coordinate, backtrack:Container, visited: &Vec<bool>) -> Vec<(Coordinate, Direction)> {
     let mut valid_moves: Vec<(Coordinate, Direction)> = Vec::new();
@@ -198,40 +195,7 @@ fn get_linear_coord(coord:&Coordinate, width:u32) -> usize {
     return (coord.y * width + coord.x) as usize
 }
 
-fn get_duration(instant:Instant) -> Duration {
-    instant.elapsed()
-}
-
-fn get_timer() -> Instant {
-    let timer = Instant::now();
-    timer
-}
-
-fn paint_square(square:Square, image:&mut RgbImage) {
-    for y in 0..square.dimensions.height {
-        for x in 0..square.dimensions.width {
-            *image.get_pixel_mut((square.dimensions.width*square.start.x) + x, (square.dimensions.height*square.start.y) + y) = image::Rgb(square.colour);
-        }
-    }
-}
-
-fn draw_png(frame:WireFrame, cell:Container, maze:Container) {
-
-    let mut image: RgbImage = RgbImage::new(maze.width*cell.width, maze.height*cell.height);
-    for i in 0..(frame.data.len() as u32) {
-        let x:u32 = i % frame.width;
-        let y:u32 = (i - x) / frame.width;
-        let square:Square = Square { 
-            start: Coordinate { x:(x), y:(y)},
-            dimensions: Container { width: (cell.width), height: (cell.height) },
-            colour: if frame.data[i as usize] == MAZE_PATH_CHAR {WHITE} else {BLACK},
-        };
-        paint_square(square, &mut image);
-    }
-    let path = String::from(OUTPUT_PATH);
-    let path = path + OUTPUT_FILE_PNG;
-    image.save(path).unwrap();
-}
+/* ??? Consumes the backtracking output functions? */
 
 fn create_wireframe(paths:&Vec<Path>, maze:Container) -> WireFrame {
     let width = (maze.width) as usize;
@@ -257,6 +221,48 @@ fn create_wireframe(paths:&Vec<Path>, maze:Container) -> WireFrame {
     let frame:WireFrame = WireFrame { width: (width.try_into().unwrap()), data: (wireframe) };
     frame
 }
+
+/* PNG drawing functions */
+
+fn paint_square(square:Square, image:&mut RgbImage) {
+    for y in 0..square.dimensions.height {
+        for x in 0..square.dimensions.width {
+            *image.get_pixel_mut((square.dimensions.width*square.start.x) + x, (square.dimensions.height*square.start.y) + y) = image::Rgb(square.colour);
+        }
+    }
+}
+
+fn draw_png(frame:&WireFrame, cell:Container, maze:Container) {
+
+    let mut image: RgbImage = RgbImage::new(maze.width*cell.width, maze.height*cell.height);
+    for i in 0..(frame.data.len() as u32) {
+        let x:u32 = i % frame.width;
+        let y:u32 = (i - x) / frame.width;
+        let square:Square = Square { 
+            start: Coordinate { x:(x), y:(y)},
+            dimensions: Container { width: (cell.width), height: (cell.height) },
+            colour: if frame.data[i as usize] == MAZE_PATH_CHAR {WHITE} else {BLACK},
+        };
+        paint_square(square, &mut image);
+    }
+    let path = String::from(OUTPUT_PATH);
+    let path = path + OUTPUT_FILE_PNG;
+    image.save(path).unwrap();
+}
+
+/* Diagnostic functions */
+
+fn start_timer(message:&'static str) -> Instant {
+    let timer = Instant::now();
+    println!("{}", message);
+    timer
+}
+
+fn end_timer(item:&'static str, timer: Instant) {
+    println!("{} took {:.4}", item, timer.elapsed().as_secs_f32());
+}
+
+/* File output functions */
 
 fn output_ascii(frame:&WireFrame) {
     let mut output = String::new();
@@ -285,6 +291,8 @@ fn write_to_file(path:String, output:String) {
     let mut file = File::create(path).unwrap();
     file.write_all(output.as_bytes()).unwrap(); 
 }
+
+/* Structures */
 
 struct Square {
     start: Coordinate,
