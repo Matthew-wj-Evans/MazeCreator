@@ -57,10 +57,8 @@ fn main() {
 
     // A boolean table to check if a coordinate has been traversed.
     let mut visited: Vec<bool> = vec![false; (backtrack.get_area()) as usize];
-
     // Stores the traversed path. Is only a size of zero twice, when it's started and when it's done.
     let mut stack_position: Stack<Coordinate> =  Stack::new(); 
-
     // Stores a coordinate and reference to the kind of transformation (North, East, South, West) to the next coordinate
     let mut paths: Vec<Path> = Vec::new(); 
 
@@ -79,7 +77,6 @@ fn main() {
     // Start backtracking
     while !stack_position.is_empty() {
         // peek at the end of the stack to get the coord
-        // Get list of possible translations and the associated direction
         let coord = stack_position.peek().unwrap();
         // The tuple returned is the new coord and what direction the current needs to go
         let mut next_set: Vec<(Coordinate, Direction)> = valid_moves(*coord,backtrack, &visited);
@@ -88,16 +85,16 @@ fn main() {
             // IMPORTANT:: Need to capture the first pop of a series, it's the end of a branch
             capture_stack_end(stack_position.pop().unwrap(), &mut paths);
             next_set = iterate_through_stack(backtrack, &visited, &mut stack_position);
-        } // End if/else
+        }
     
-        // If a valid coord was grabbed, push it to the stack, get the next coord, then update visisted with new coord
+        // if there are valid coordianates, grab and then update
         if !next_set.is_empty() {      
             let index:usize = rng.gen_range(0..next_set.len());
             let next = next_set[index].0;
             let direction = next_set[index].1;
 
-            add_path(direction, stack_position.peek().unwrap(), &mut paths);
-            add_coordinate(next, &mut stack_position);
+            add_coordinate_to_path(direction, stack_position.peek().unwrap(), &mut paths);
+            add_coordinate_to_stack(next, &mut stack_position);
             update_visited(get_linear_coord(stack_position.peek().unwrap(), backtrack.width), &mut visited);
         }
     } 
@@ -114,8 +111,6 @@ fn main() {
     println!("Wireframe building took {:.4} seconds.\n", duration_wireframe.as_secs_f32());
     output_path(&paths); // returns the result of writing to file
     output_ascii(&wireframe);
-    //convert_wireframe_ascii(&mut wireframe);
-    //output_ascii_maze(&wireframe);
 
     println!("Starting to draw the png...");
     let timer = get_timer();
@@ -128,12 +123,12 @@ fn capture_stack_end(branch_end:Coordinate, paths:&mut Vec<Path>) {
     paths.push(Path { coordinate: (branch_end), direction: (Direction::NONE) });
 }
 
-fn add_path(direction:Direction, coord:&Coordinate, paths: &mut Vec<Path>) {
+fn add_coordinate_to_path(direction:Direction, coord:&Coordinate, paths: &mut Vec<Path>) {
     let path:Path = Path { coordinate: (*coord), direction: (direction) }; // push current coord w/ direction to path
     paths.push(path);
 }
 
-fn add_coordinate(next:Coordinate, stack:&mut Stack<Coordinate>) {
+fn add_coordinate_to_stack(next:Coordinate, stack:&mut Stack<Coordinate>) {
     stack.push(next);
 }
 
