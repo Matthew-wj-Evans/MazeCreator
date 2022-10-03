@@ -55,9 +55,7 @@ fn main() {
         height: (translate(backtrack.height, 2, 1)),
     };
 
-    // A boolean table to quickly check if a coordinate has been traversed.
-    // the index to this table is derived using: coord_y * maze_width + coord_x
-    // This is to avoid having to iterate through an N-sized collection of coordinates, while comparing, when a collection of valid coordinate translations is needed.
+    // A boolean table to check if a coordinate has been traversed.
     let mut visited: Vec<bool> = vec![false; (backtrack.get_area()) as usize];
 
     // Stores the traversed path. Is only a size of zero twice, when it's started and when it's done.
@@ -72,47 +70,42 @@ fn main() {
         y: rng.gen_range(0..(backtrack.height - 1)),
     };
     stack_position.push(start_coord);
-
     // Mark the coordinate as visited
     update_visited(get_linear_coord(stack_position.peek().unwrap(), backtrack.width), &mut visited);
 
     println!("Starting backtracking...");
     let timer = get_timer();
+    
+    // Start backtracking
     while !stack_position.is_empty() {
         // peek at the end of the stack to get the coord
         // Get list of possible translations and the associated direction
         let coord = stack_position.peek().unwrap();
+        // The tuple returned is the new coord and what direction the current needs to go
         let mut next_set: Vec<(Coordinate, Direction)> = valid_moves(*coord,backtrack, &visited);
         let mut update:bool = false;
 
-        if next_set.len() == 0 {
-            // IMPORTANT:: Need to capture the first pop of a series, it denotes the end of a branch
-            let branch_end = stack_position.pop().unwrap();
-            paths.push(Path { coordinate: (branch_end), direction: (Direction::NONE) });
-            // Get a new coord
-            let coord = stack_position.peek().unwrap();
-            next_set = valid_moves(*coord, backtrack, &visited);
-
-            while next_set.is_empty() && !stack_position.is_empty() {
-                stack_position.pop(); // pop from mem
-                if !stack_position.is_empty() {
-                    let coord = stack_position.peek().unwrap();
-                    next_set = valid_moves(*coord, backtrack, &visited);
-                    if !next_set.is_empty() {
-                        update = true;
-                    }
-                }
-            } // End popping
-        } else {
+        if next_set.len() > 0 {
+            // No need to pop from the stack
             update = true;
-        } // End else
+        } else {
+            // IMPORTANT:: Need to capture the first pop of a series, it's the end of a branch
+            push_stack_end(stack_position.pop().unwrap(), &mut paths);
+            next_set = get_set_from_stack(backtrack, &visited, &mut stack_position);
 
+            if !next_set.is_empty() {
+                update = true;
+            }
+        } // End if/else
+        
+        // If a valid coord was grabbed, push it to the stack, get the next coord, then update visisted with new coord
         if update {      
             let index:usize = rng.gen_range(0..next_set.len());
             update_state(next_set[index], &mut stack_position, &mut paths);
             update_visited(get_linear_coord(stack_position.peek().unwrap(), backtrack.width), &mut visited);
         }
-    } // End backtracking
+    } 
+    // End backtracking
 
     // Get the duration of the timer
     let duration_backtracking = get_duration(timer); 
@@ -135,29 +128,8 @@ fn main() {
     println!("Drawing the png took {:.4} seconds.\n", duration_drawing.as_secs_f32());
 }
 
-fn translate(value:u32, coefficient:u32, offset:u32) -> u32 {
-    return coefficient * value + offset;
-}
-
-fn will_overflow(value:u32, offset:u32) -> bool {
-    return value < offset 
-}
-
-fn update_visited(coord:usize, visited:&mut Vec<bool>) {
-    visited[coord] = true;
-}
-
-fn get_linear_coord(coord:&Coordinate, width:u32) -> usize {
-    return (coord.y * width + coord.x) as usize
-}
-
-fn get_duration(instant:Instant) -> Duration {
-    instant.elapsed()
-}
-
-fn get_timer() -> Instant {
-    let timer = Instant::now();
-    timer
+fn push_stack_end(branch_end:Coordinate, paths:&mut Vec<Path>) {
+    paths.push(Path { coordinate: (branch_end), direction: (Direction::NONE) });
 }
 
 fn update_state(next:(Coordinate,Direction), stack:&mut Stack<Coordinate>, paths:&mut Vec<Path>) {
@@ -168,30 +140,20 @@ fn update_state(next:(Coordinate,Direction), stack:&mut Stack<Coordinate>, paths
     paths.push(path);
 }
 
-fn paint_square(square:Square, image:&mut RgbImage) {
-    for y in 0..square.dimensions.height {
-        for x in 0..square.dimensions.width {
-            *image.get_pixel_mut((square.dimensions.width*square.start.x) + x, (square.dimensions.height*square.start.y) + y) = image::Rgb(square.colour);
+fn get_set_from_stack(backtrack:Container, visited:&Vec<bool>, stack:&mut Stack<Coordinate>) -> Vec<(Coordinate, Direction)> {
+    // Get a new coord
+    let coord: &Coordinate = stack.peek().unwrap();
+    let mut next_set:Vec<(Coordinate, Direction)> = valid_moves(*coord, backtrack, &visited);
+
+    // check if there are valid moves, if not start poping until there are OR the stack is empty
+    while next_set.is_empty() && !stack.is_empty() {
+        stack.pop(); // pop from mem
+        if !stack.is_empty() {
+            let coord: &Coordinate = stack.peek().unwrap();
+            next_set = valid_moves(*coord, backtrack, &visited);
         }
     }
-}
-
-fn draw_png(frame:WireFrame, cell:Container, maze:Container) {
-
-    let mut image: RgbImage = RgbImage::new(maze.width*cell.width, maze.height*cell.height);
-    for i in 0..(frame.data.len() as u32) {
-        let x:u32 = i % frame.width;
-        let y:u32 = (i - x) / frame.width;
-        let square = Square { 
-            start: Coordinate { x:(x), y:(y)},
-            dimensions: Container { width: (cell.width), height: (cell.height) },
-            colour: if frame.data[i as usize] == MAZE_PATH_CHAR {WHITE} else {BLACK},
-        };
-        paint_square(square, &mut image);
-    }
-    let path = String::from(OUTPUT_PATH);
-    let path = path + OUTPUT_FILE_PNG;
-    image.save(path).unwrap();
+    next_set
 }
 
 fn valid_moves(coord:Coordinate, backtrack:Container, visited: &Vec<bool>) -> Vec<(Coordinate, Direction)> {
@@ -228,6 +190,57 @@ fn valid_moves(coord:Coordinate, backtrack:Container, visited: &Vec<bool>) -> Ve
     valid_moves
 }
 
+fn translate(value:u32, coefficient:u32, offset:u32) -> u32 {
+    return coefficient * value + offset;
+}
+
+fn will_overflow(value:u32, offset:u32) -> bool {
+    return value < offset 
+}
+
+fn update_visited(coord:usize, visited:&mut Vec<bool>) {
+    visited[coord] = true;
+}
+
+fn get_linear_coord(coord:&Coordinate, width:u32) -> usize {
+    return (coord.y * width + coord.x) as usize
+}
+
+fn get_duration(instant:Instant) -> Duration {
+    instant.elapsed()
+}
+
+fn get_timer() -> Instant {
+    let timer = Instant::now();
+    timer
+}
+
+fn paint_square(square:Square, image:&mut RgbImage) {
+    for y in 0..square.dimensions.height {
+        for x in 0..square.dimensions.width {
+            *image.get_pixel_mut((square.dimensions.width*square.start.x) + x, (square.dimensions.height*square.start.y) + y) = image::Rgb(square.colour);
+        }
+    }
+}
+
+fn draw_png(frame:WireFrame, cell:Container, maze:Container) {
+
+    let mut image: RgbImage = RgbImage::new(maze.width*cell.width, maze.height*cell.height);
+    for i in 0..(frame.data.len() as u32) {
+        let x:u32 = i % frame.width;
+        let y:u32 = (i - x) / frame.width;
+        let square:Square = Square { 
+            start: Coordinate { x:(x), y:(y)},
+            dimensions: Container { width: (cell.width), height: (cell.height) },
+            colour: if frame.data[i as usize] == MAZE_PATH_CHAR {WHITE} else {BLACK},
+        };
+        paint_square(square, &mut image);
+    }
+    let path = String::from(OUTPUT_PATH);
+    let path = path + OUTPUT_FILE_PNG;
+    image.save(path).unwrap();
+}
+
 fn create_wireframe(paths:&Vec<Path>, maze:Container) -> WireFrame {
     let width = (maze.width) as usize;
     let height = (maze.height) as usize;
@@ -235,8 +248,8 @@ fn create_wireframe(paths:&Vec<Path>, maze:Container) -> WireFrame {
 
     for path in paths {
         // Translate the coordinates
-        let x = (&path.coordinate.x * 2 + 1) as usize;
-        let y = (&path.coordinate.y * 2 + 1) as usize;
+        let x = translate(path.coordinate.x, 2, 1) as usize;
+        let y = translate(path.coordinate.y, 2, 1) as usize;
         let linear_index = y * width + x;
         let path_index = match path.direction {
             Direction::NORTH => linear_index - width,
