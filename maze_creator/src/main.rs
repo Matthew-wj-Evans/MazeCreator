@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use std::io::Write;
 use std::fs::File;
 use image::RgbImage;
@@ -14,11 +14,10 @@ const MAZE_WALL_CHAR:&'static       str = "#";
 
 const PIXEL_HEIGHT:                 u32 = 25; // pixels
 const PIXEL_WIDTH:                  u32 = 25; // pizels
-const PATH_HEIGHT:                  u32 = 8;
-const PATH_WIDTH:                   u32 = 8;
+const PATH_HEIGHT:                  u32 = 21;
+const PATH_WIDTH:                   u32 = 37;
 
-const BLACK:                        [u8;3] = [0,0,0];
-const WHITE:                        [u8;3] = [255,255,255];
+const PATH_COLOR:                        [u8;3] = [192,192,192];
 
 #[derive(Copy, Clone, Debug)]
 enum Direction {
@@ -214,7 +213,6 @@ fn create_wireframe(paths:&Vec<Path>, maze:Container) -> WireFrame {
             Direction::WEST => linear_index - 1,
             Direction::NONE => linear_index,
         };
-
         wireframe[linear_index] = MAZE_PATH_CHAR;
         wireframe[path_index] = MAZE_PATH_CHAR;
     }
@@ -236,14 +234,16 @@ fn draw_png(frame:&WireFrame, cell:Container, maze:Container) {
 
     let mut image: RgbImage = RgbImage::new(maze.width*cell.width, maze.height*cell.height);
     for i in 0..(frame.data.len() as u32) {
-        let x:u32 = i % frame.width;
-        let y:u32 = (i - x) / frame.width;
-        let square:Square = Square { 
-            start: Coordinate { x:(x), y:(y)},
-            dimensions: Container { width: (cell.width), height: (cell.height) },
-            colour: if frame.data[i as usize] == MAZE_PATH_CHAR {WHITE} else {BLACK},
-        };
-        paint_square(square, &mut image);
+        if frame.data[i as usize] == MAZE_PATH_CHAR {
+            let x:u32 = i % frame.width;
+            let y:u32 = (i - x) / frame.width;
+            let square:Square = Square { 
+                start: Coordinate { x:(x), y:(y)},
+                dimensions: Container { width: (cell.width), height: (cell.height) },
+                colour: PATH_COLOR,
+            };
+            paint_square(square, &mut image);
+        }
     }
     let path = String::from(OUTPUT_PATH);
     let path = path + OUTPUT_FILE_PNG;
