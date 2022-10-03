@@ -90,18 +90,22 @@ fn main() {
             update = true;
         } else {
             // IMPORTANT:: Need to capture the first pop of a series, it's the end of a branch
-            push_stack_end(stack_position.pop().unwrap(), &mut paths);
-            next_set = get_set_from_stack(backtrack, &visited, &mut stack_position);
+            capture_stack_end(stack_position.pop().unwrap(), &mut paths);
+            next_set = iterate_through_stack(backtrack, &visited, &mut stack_position);
 
             if !next_set.is_empty() {
                 update = true;
             }
         } // End if/else
-        
+
         // If a valid coord was grabbed, push it to the stack, get the next coord, then update visisted with new coord
         if update {      
             let index:usize = rng.gen_range(0..next_set.len());
-            update_state(next_set[index], &mut stack_position, &mut paths);
+            let next = next_set[index].0;
+            let direction = next_set[index].1;
+
+            add_path(direction, stack_position.peek().unwrap(), &mut paths);
+            add_coordinate(next, &mut stack_position);
             update_visited(get_linear_coord(stack_position.peek().unwrap(), backtrack.width), &mut visited);
         }
     } 
@@ -128,19 +132,24 @@ fn main() {
     println!("Drawing the png took {:.4} seconds.\n", duration_drawing.as_secs_f32());
 }
 
-fn push_stack_end(branch_end:Coordinate, paths:&mut Vec<Path>) {
+fn capture_stack_end(branch_end:Coordinate, paths:&mut Vec<Path>) {
     paths.push(Path { coordinate: (branch_end), direction: (Direction::NONE) });
 }
 
-fn update_state(next:(Coordinate,Direction), stack:&mut Stack<Coordinate>, paths:&mut Vec<Path>) {
-    let coord = stack.peek().unwrap();
-    let path:Path = Path { coordinate: (*coord), direction: (next.1) }; // push current coord w/ direction to path
-    let coord = next.0; // set coord to equal its directional translation
-    stack.push(coord);
+fn add_path(direction:Direction, coord:&Coordinate, paths: &mut Vec<Path>) {
+    let path:Path = Path { coordinate: (*coord), direction: (direction) }; // push current coord w/ direction to path
     paths.push(path);
 }
 
-fn get_set_from_stack(backtrack:Container, visited:&Vec<bool>, stack:&mut Stack<Coordinate>) -> Vec<(Coordinate, Direction)> {
+fn add_coordinate(next:Coordinate, stack:&mut Stack<Coordinate>) {
+    stack.push(next);
+}
+
+fn update_visited(coord:usize, visited:&mut Vec<bool>) {
+    visited[coord] = true;
+}
+
+fn iterate_through_stack(backtrack:Container, visited:&Vec<bool>, stack:&mut Stack<Coordinate>) -> Vec<(Coordinate, Direction)> {
     // Get a new coord
     let coord: &Coordinate = stack.peek().unwrap();
     let mut next_set:Vec<(Coordinate, Direction)> = valid_moves(*coord, backtrack, &visited);
@@ -196,10 +205,6 @@ fn translate(value:u32, coefficient:u32, offset:u32) -> u32 {
 
 fn will_overflow(value:u32, offset:u32) -> bool {
     return value < offset 
-}
-
-fn update_visited(coord:usize, visited:&mut Vec<bool>) {
-    visited[coord] = true;
 }
 
 fn get_linear_coord(coord:&Coordinate, width:u32) -> usize {
