@@ -83,23 +83,15 @@ fn main() {
         let coord = stack_position.peek().unwrap();
         // The tuple returned is the new coord and what direction the current needs to go
         let mut next_set: Vec<(Coordinate, Direction)> = valid_moves(*coord,backtrack, &visited);
-        let mut update:bool = false;
 
-        if next_set.len() > 0 {
-            // No need to pop from the stack
-            update = true;
-        } else {
+        if next_set.is_empty() {
             // IMPORTANT:: Need to capture the first pop of a series, it's the end of a branch
             capture_stack_end(stack_position.pop().unwrap(), &mut paths);
             next_set = iterate_through_stack(backtrack, &visited, &mut stack_position);
-
-            if !next_set.is_empty() {
-                update = true;
-            }
         } // End if/else
-
+    
         // If a valid coord was grabbed, push it to the stack, get the next coord, then update visisted with new coord
-        if update {      
+        if !next_set.is_empty() {      
             let index:usize = rng.gen_range(0..next_set.len());
             let next = next_set[index].0;
             let direction = next_set[index].1;
